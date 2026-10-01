@@ -1,0 +1,155 @@
+import csv
+import os
+import random
+import string
+import urllib.error
+import urllib.request
+import webbrowser
+D = "urls.csv"
+def load_urls():
+    urls = {}
+    if os.path.exists(D):
+        with open(D, mode="r", newline="", encoding="utf-8") as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                urls[row["short_code"]] = {
+                    "url": row["url"],
+                    "clicks": int(row["clicks"]),
+                }
+    return urls
+
+
+def save_urls(urls):
+    with open(D, mode="w", newline="", encoding="utf-8") as file:
+        fieldnames = ["short_code", "url", "clicks"]
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+
+        for short_code, data in urls.items():
+            writer.writerow(
+                {
+                    "short_code": short_code,
+                    "url": data["url"],
+                    "clicks": data["clicks"],
+                }
+            )
+
+
+def is_valid_url(url):
+    try:
+        r = urllib.request.Request(
+            url, headers={"User-Agent": "Mozilla/5.0"}
+        )
+        with urllib.request.urlopen(r, timeout=8):
+            return True
+    except (urllib.error.URLError, urllib.error.HTTPError):
+        return False
+
+
+def make_readable_code(url):
+    z = (
+        url.replace("https://", "").replace("http://", "").replace("www.", "")
+    )
+    p = z.split("/")
+    x = p[0]
+    y = x.split(".")[0]
+
+    if not y:
+        y = "link"
+
+    r2 = string.ascii_letters + string.digits
+    s = "".join(random.choice(r2) for _ in range(3))
+    return f"{y}-{s}"
+
+
+def generate_short_code(length=3):
+    characters = string.ascii_letters + string.digits
+    return "".join(random.choices(characters, k=length))
+
+
+def shorten_url():
+    long_url = input("\nEnter the long URL: ").strip()
+    if not long_url:
+        print("URL cannot be empty.")
+        return
+
+    if not long_url.startswith("http://") and not long_url.startswith("https://"):
+        long_url = "https://" + long_url
+
+    print("Checking website availability via urllib.request...")
+    if not is_valid_url(long_url):
+        print("Warning: Could not connect to that URL.")
+        proceed = input("Do you still want to save it anyway? (y/n): ").lower()
+        if proceed != "y":
+            return
+
+    urls = load_urls()
+
+    short_code = make_readable_code(long_url)
+    while short_code in urls:
+        short_code = make_readable_code(long_url)
+
+    urls[short_code] = {"url": long_url, "clicks": 0}
+    save_urls(urls)
+
+    print(f"\nSuccess! Shortened Code: {short_code}")
+
+
+def find_url():
+    short_code = input("\nEnter the short code: ").strip()
+    urls = load_urls()
+
+    if short_code in urls:
+        urls[short_code]["clicks"] += 1
+        save_urls(urls)
+
+        long_url = urls[short_code]["url"]
+        click_count = urls[short_code]["clicks"]
+
+        print(f"\nOriginal URL: {long_url}")
+        print(f"Total Clicks: {click_count}")
+
+        open_choice = input("Open this link in browser? (y/n): ").lower()
+        if open_choice == "y":
+            webbrowser.open(long_url)
+    else:
+        print("\nError: Short code not found!")
+
+
+def list_urls():
+    urls = load_urls()
+
+    if not urls:
+        print("\nNo saved URLs found in storage.")
+        return
+
+    print("\nSaved URLs")
+    print(f"{'Code':<18} | {'Clicks':<8} | {'Original URL'}")
+    print("-" * 65)
+
+    for code, data in urls.items():
+        print(f"{code:<18} | {data['clicks']:<8} | {data['url']}")
+
+
+def main():
+    while True:
+        print("\n--- URL Shortener (CSV Storage) ---")
+        print("1. Shorten a URL")
+        print("2. Find / Open a URL (Tracks Clicks)")
+        print("3. List all saved URLs & Stats")
+        print("4. Exit")
+
+        choice = input("Choose an option (1-4): ").strip()
+
+        if choice == "1":
+            shorten_url()
+        elif choice == "2":
+            find_url()
+        elif choice == "3":
+            list_urls()
+        elif choice == "4":
+            print("\nGoodbye!")
+            break
+        else:
+            print("\nInvalid choice. Please enter 1, 2, 3, or 4.")
+main()
